@@ -1,0 +1,37 @@
+name: 'Build Application'
+description: 'Build the application executable'
+inputs:
+  python-version:
+    description: 'The Python version to use'
+    required: true
+    default: '3.10'
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install dependencies
+      run: pip install pyinstaller
+      shell: bash
+
+    - name: Build executable
+      run: |
+          export data_string=(images:images locales:locales)
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            icon_ext="ico"
+            data_string=(${data_string[@]//:/\;})
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            icon_ext="icns"
+          else
+            icon_ext="png"
+          fi
+          pyinstaller --onefile --windowed \
+          --icon=images/logo.$icon_ext \
+          --add-data ${data_string[0]} \
+          --add-data ${data_string[1]} \
+          --name ${{ runner.os }}-${{ github.event.repository.name }} \
+          ${{ github.event.repository.name }}.py
+      shell: bash

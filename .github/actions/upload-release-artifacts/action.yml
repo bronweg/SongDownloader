@@ -1,0 +1,28 @@
+name: 'Upload Release Artifacts'
+description: 'Upload artifacts as release'
+runs:
+  using: 'composite'
+  steps:
+    - name: Upload Release Artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      with:
+        upload_url: ${{ inputs.upload-url }}
+        asset_name: ${{ inputs.artifact-name }}
+        asset_path: ${{ inputs.artifact-path }}
+        asset_content_type: application/zip
+
+inputs:
+  github-token:
+    description: 'GitHub Token for authentication'
+    required: true
+  upload-url:
+    description: "Artifact destination URL"
+    required: true
+  artifact-name:
+    description: 'Name of the artifact'
+    required: true
+  artifact-path:
+    description: 'Path to the artifact'
+    required: true

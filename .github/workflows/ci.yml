@@ -1,0 +1,46 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.py'
+      - 'images/**'
+      - '.github/**/**'
+      - 'requirements.txt'
+
+#on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Requirements
+        uses: ./.github/actions/install-requirements
+
+      - name: Prepare Icons
+        uses: ./.github/actions/prepare-icons
+
+      - name: Build Application
+        uses: ./.github/actions/build-app
+        with:
+          python-version: '3.10'
+
+      - name: Upload Artifacts
+        uses: ./.github/actions/upload-artifacts
+        with:
+          artifact-name: '${{ runner.os }}-executable'
+          artifact-path: dist/*
+
+      - name: Save cache artifacts
+        id: "cached-artifacts"
+        uses: actions/cache/save@v4
+        with:
+          path: dist/*
+          key: '${{ runner.os }}-executable-${{ github.sha }}'
