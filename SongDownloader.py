@@ -195,6 +195,7 @@ class SongDownloader(QWidget):
                                                      self.translate_key('choose_project'),
                                                      dir=self.projLineEdit.text())
         if proj_path:
+            proj_path = os.path.normpath(proj_path)
             self.projLineEdit.setText(proj_path)
 
             proj_name = os.path.basename(proj_path)
