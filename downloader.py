@@ -56,6 +56,7 @@ class ListenerThread(Thread):
                                   label='postprocess', part_n=2, part_i=1)
 
 
+
     def parse_yt_dlp_data(self, line):
         line = line.decode()
         if match := re.search('duration:(\\d+(\\.\\d+))', line):
@@ -77,7 +78,7 @@ def get_progress_listener(progress_callback):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind((HOST, PORT))
         listen_on = '{}:{:d}/{}/{}'.format(
-            HOST, PORT, 'mp3downloader',
+            HOST, PORT, 'downloader',
             ''.join(random.choices(string.ascii_lowercase, k=8)))
         sock.settimeout(10)
         sock.listen(1)
@@ -117,18 +118,42 @@ def updateProgress(done, total, progress_callback, label=None, part_n=1, part_i=
 
 
 
-def prepare_subprocess(youtube_url, output_mp3_path, progress_path):
+def prepare_subprocess(youtube_url, audio_only, output_path, progress_path):
     cmd = [
         'yt-dlp',
         '--progress', '--newline',
         '--print', 'duration:%(duration)f', '--no-simulate',
-        '--restrict-filenames',
+        #'--restrict-filenames',
         '--force-overwrites',
-        '-x', '--audio-format', 'mp3',
+    ]
+
+    if audio_only:
+        cmd.extend([
+            '-x', '--audio-format', 'mp3',
+        ])
+    else:
+        cmd.extend([
+            '--format', 'mp4',
+            '--format-sort', 'codec:h265',
+            '--use-postprocessor', 'FFmpegCopyStream',
+            '--postprocessor-args', "CopyStream: -c:a aac -c:v libx265 -tag:v hvc1",
+        ])
+
+    cmd.extend([
         '--postprocessor-args', "ffmpeg:-progress {}".format(progress_path),
         youtube_url,
-        '-o', output_mp3_path
-    ]
+    ])
+
+    if not output_path or os.path.isdir(output_path):
+        cmd.extend([
+            '-o', os.path.join(output_path, '%(title)s.%(ext)s'),
+            #'-o', '%(title)s.%(ext)s',
+            # '-o', 'vetochka.%(ext)s'
+        ])
+    else:
+        cmd.extend([
+            '-o', output_path,
+        ])
 
     kwargs = {
         'stdout': subprocess.PIPE,
@@ -141,17 +166,20 @@ def prepare_subprocess(youtube_url, output_mp3_path, progress_path):
 
 
 
-def download_song(youtube_url, output_mp3_path, progress_callback=default_progress_callback):
+def download(youtube_url, audio_only, output_path, progress_callback=default_progress_callback):
     with get_progress_listener(progress_callback) as listener:
 
-        cmd, kwargs = prepare_subprocess(youtube_url, output_mp3_path,
+        cmd, kwargs = prepare_subprocess(youtube_url, audio_only, output_path,
                                          progress_path='http://{}'.format(listener.listen_on))
         process = subprocess.Popen(cmd, **kwargs)
         for line in process.stdout:
             listener.parse_yt_dlp_data(line)
 
 
+
 if __name__ == "__main__":
-    youtube_url = 'https://youtu.be/KFkoy5yYR0k?si=I769lfJRAKg_CIoF'
-    output_mp3_path = 'song.mp3'
-    download_song(youtube_url, output_mp3_path)
+    youtube_url = 'https://www.youtube.com/watch?v=YG9otasNmxI'
+    # youtube_url = 'https://www.youtube.com/watch?v=-4_bi5E6Z1E'
+    output_mp3_path = '/Users/betty/projects/2024-03-20/vetochka/song.mp3'
+    output_mp4_path = '/Users/betty/projects/2024-03-20/vetochka'
+    download(youtube_url, False, output_mp4_path)
