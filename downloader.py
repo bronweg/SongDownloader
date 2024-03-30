@@ -134,10 +134,9 @@ def prepare_subprocess(youtube_url, audio_only, output_path, progress_path):
     else:
         cmd.extend([
             '--format', 'mp4',
-            '--format-sort', 'codec:h264',
-            '--use-postprocessor', 'FFmpegCopyStream',
+            # '--format-sort', 'codec:h265',
+            # '--use-postprocessor', 'FFmpegCopyStream',
             # '--postprocessor-args', "CopyStream: -c:a aac -c:v libx265 -tag:v hvc1",
-            '--postprocessor-args', "CopyStream: -c:a aac -c:v libx264",
         ])
 
     cmd.extend([
