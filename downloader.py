@@ -211,11 +211,14 @@ def prepare_subprocess(youtube_url, audio_only, output_path,
 
     if not output_path or os.path.isdir(output_path):
         cmd.extend([
-            '-o', os.path.join(output_path, '%(title)s%(playlist_index&__{}|)s.%(ext)s'),
+            '-o', os.path.join(output_path, '%(playlist_autonumber|)s%(playlist_autonumber&_|)s%(title)s.%(ext)s'),
         ])
     else:
         cmd.extend([
-            '-o', '%(playlist_index&_{}|)s'.join(os.path.splitext(output_path))
+            '-o', os.path.join(
+                os.path.dirname(output_path),
+                ''.join(('%(playlist_autonumber|)s%(playlist_autonumber&_|)s', os.path.basename(output_path)))
+            ),
         ])
 
     kwargs = {
@@ -251,10 +254,10 @@ def download(youtube_url, audio_only, output_path,
 
 
 if __name__ == "__main__":
-    youtube_url = 'https://www.youtube.com/watch?v=YG9otasNmxI'
+    # youtube_url = 'https://www.youtube.com/watch?v=YG9otasNmxI'
     # youtube_url = 'https://www.youtube.com/watch?v=-4_bi5E6Z1E'
-    # youtube_url = 'https://www.youtube.com/watch?v=fSzdAGoU0vI&list=PLCC3A8CC8A65F6F64'       # short list
-    # youtube_url = 'https://www.youtube.com/playlist?list=PL8-QChleIXYo1bmmKrbh5H52IsJWnJ_8L'    # long list
+    # youtube_url = 'https://www.youtube.com/playlist?list=PL8-QChleIXYoF73aPIswV0umaJLPJ7Jod'         # short list
+    youtube_url = 'https://www.youtube.com/playlist?list=PL8-QChleIXYo1bmmKrbh5H52IsJWnJ_8L'       # long list
     # youtube_url = 'https://www.youtube.com/watch?v=cC1xVOiCAwc'
     output_mp3_path = '/Users/betty/projects/2024-03-20/talelle/song.mp3'
     output_mp4_path = '/Users/betty/projects/2024-03-20/yona'
