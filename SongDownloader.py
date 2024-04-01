@@ -360,7 +360,7 @@ class SongDownloader(QWidget):
         self.progressStatus = status
         if status or int(self.progressBar.text()[:-1]):
             self.progressLabel.setText(f'{self.translate_key(self.progressStatus)} {str(self.progressBar.text())}')
-            self.countLabel.setText(f'{self.translate_key('progress_count')} {count}')
+            self.countLabel.setText(f'{self.translate_key("progress_count")} {count}')
         else:
             self.progressLabel.setText('')
             self.countLabel.setText('')

@@ -90,7 +90,7 @@ class ListenerThread(Thread):
             'current:(?P<current>\\d+)',
             'total:(?P<total>\\d+)',
             'length:(?P<length>\\d+)',
-            'max-playlist:(?P<max_playlist>\\d+)',
+            'max-playlist:(?P<max_playlist>-?\\d+)',
             'abort-on-long:(?P<abort_on_long>\\d+)',
         ))
         if match := re.search(info_pattern, line):
@@ -111,16 +111,14 @@ class ListenerThread(Thread):
 
 @contextlib.contextmanager
 def get_progress_listener(use_socket, progress_callback):
-    HOST = 'localhost'  # Standard loopback interface address (localhost)
-    PORT = 65432  # Port to listen on (non-privileged ports are > 1023)
     sock = type("Closable", (object,), {"close": lambda self: "closed"})
     listener = type("Joinable", (object,), {"join": lambda self: "joined" })
 
     try:
         if use_socket:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind((HOST, PORT))
-            listen_on = '{}:{:d}'.format(HOST, PORT)
+            sock.bind(('', 0))
+            listen_on = '{}:{:d}'.format(*sock.getsockname())
             sock.listen(1)
             listener = ListenerThread(sock, listen_on, progress_callback)
             listener.start()
