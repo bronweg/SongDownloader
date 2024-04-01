@@ -18,10 +18,12 @@
   "directory_not_found": "The specified directory does not exist.",
   "url_not_valid": "Invalid URL provided",
   "output_path_not_found": "Please specify output MP3 path.",
-  "creation": "Creation in progress...",
+  "creation": "Download will start soon:",
   "saving_settings_warning": "Something went wrong while saving settings",
   "mp3_creation_failed": "An error occurred while downloading and saving the file.",
-  "download": "download",
-  "postprocess": "postprocess",
+  "download": "download:",
+  "postprocess": "postprocess:",
+  "progress_count": "now in progress:",
+  "playlist_too_long": "Playlist too long. max: {}, actual: {}",
   "finished": "Creation finished"
 }

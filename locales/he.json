@@ -18,10 +18,12 @@
   "directory_not_found": "התיקייה שצוינה אינה קיימת.",
   "url_not_valid": "נתיב שסופק אינו תקף.",
   "output_path_not_found": "בבקשה תגדירו נתיב לקובץ.",
-  "creation": "הורדה בתהליך...",
+  "creation": "הורדה תתחיל בקרוב:",
   "saving_settings_warning": "משהו השתבש בשמירת ההגדרות.",
   "mp3_creation_failed": "אירעה שגיאה במהלך הורדת ושמירה.",
-  "download": "הורדה",
-  "postprocess": "עיבוד",
-  "finished": "הקובץ נוצר בהצלחה."
+  "download": "הורדה:",
+  "postprocess": "עיבוד:",
+  "progress_count": "כרגע בתהליך:",
+  "playlist_too_long": "הרשימה כוללת יותר מדי שירים. מקסימום: {}, נוכחי: {}",
+  "finished": "הקובץ נוצר בהצלחה"
 }

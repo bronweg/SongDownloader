@@ -13,22 +13,33 @@ from PySide6.QtGui import (QIcon, QPixmap)
 
 class DownloaderThread(QThread):
     creationStarted = Signal()
-    progressUpdated = Signal(int, str)
+    progressUpdated = Signal(int, str, str)
     creationFinished = Signal()
+    errorOccurred = Signal(str, tuple)
 
-    def __init__(self, url, audio_only, result_file):
+    def __init__(self, url, audio_only, result_file,
+                 max_playlist, abort_on_long_playlist, do_postprocess):
         super().__init__()
         self.url_to_download = url
         self.audio_only = audio_only
         self.file_to_create = result_file
+        self.max_playlist = max_playlist
+        self.abort_on_long_playlist = abort_on_long_playlist
+        self.do_postprocess = do_postprocess
 
     def run(self):
         self.creationStarted.emit()
-        downloader.download(self.url_to_download, self.audio_only, self.file_to_create, self.update_progress)
-        self.creationFinished.emit()
+        try:
+            downloader.download(self.url_to_download, self.audio_only, self.file_to_create,
+                                self.max_playlist, self.abort_on_long_playlist, self.do_postprocess,
+                                self.communicate_callback)
+            self.creationFinished.emit()
+        except ValueError as e:
+            self.errorOccurred.emit(e.args[0], e.args[1:])
 
-    def update_progress(self, value, label=None):
-        self.progressUpdated.emit(value, label)
+    def communicate_callback(self, value, label=None, count=None):
+        self.progressUpdated.emit(value, label, count)
+
 
 class SongDownloader(QWidget):
     def __init__(self):
@@ -43,6 +54,8 @@ class SongDownloader(QWidget):
         self.direction_subjects = list()
         self.alignment_subjects = list()
         self.audio_only = True
+        self.do_postprocess = self.get_postprocess_flag(settings)
+        self.max_playlist, self.abort_on_long_playlist= self.get_playlist_settings(settings)
         self.setup_ui()
         self.apply_settings(settings)
         self.change_language(self.current_language)
@@ -58,6 +71,9 @@ class SongDownloader(QWidget):
             'language': language,
             'projectPath': self.project_path,
             'projectFolder': self.project_folder,
+            'maxPlaylistLength': self.max_playlist,
+            'abortOnLongPlaylist': self.abort_on_long_playlist,
+            'doPostProcess': self.do_postprocess,
         }
         try:
             with open(self.get_settings_file(), 'w') as f:
@@ -80,7 +96,17 @@ class SongDownloader(QWidget):
     def get_project_path(settings) -> tuple[str, str]:
         return \
             settings.get('projectPath', os.path.expanduser("~")), \
-                settings.get('projectFolder', 'projects')
+            settings.get('projectFolder', 'projects')
+
+    @staticmethod
+    def get_playlist_settings(settings) -> tuple[str, str]:
+        return \
+            settings.get('maxPlaylistLength', 10), \
+            settings.get('abortOnLongPlaylist', True)
+
+    @staticmethod
+    def get_postprocess_flag(settings):
+        return settings.get('doPostProcess', False)
 
     def apply_settings(self, settings):
         self.langComboBox.setCurrentText(self.current_language)
@@ -227,15 +253,24 @@ class SongDownloader(QWidget):
         # Progress Bar
         self.progressLabel = QLabel('')
         self.progressStatus = ''
-        self.layout.addWidget(self.progressLabel)
+        self.countLabel = QLabel()
+        progressLayout = QHBoxLayout()
+        progressLayout.addWidget(self.progressLabel)
+        progressLayout.addWidget(self.countLabel)
+        self.direction_subjects.append(progressLayout)
+        self.layout.addLayout(progressLayout)
+
+
+
         self.progressBar = QProgressBar(self)
         self.progressBar.setValue(0)  # start value
         self.progressBar.setMaximum(100)  # 100% completion
         self.layout.addWidget(self.progressBar)
 
     def reset_progress(self):
-        self.set_progress_status('')
         self.progressBar.setValue(0)
+        self.set_progress_status()
+
 
     def choose_project(self):
         proj_path = QFileDialog.getExistingDirectory(self,
@@ -303,10 +338,13 @@ class SongDownloader(QWidget):
         output_path = self.outputFileLineEdit.text()
 
         try:
-            self.dnwThread = DownloaderThread(external_url, self.audio_only, output_path)
+            self.dnwThread = DownloaderThread(
+                external_url, self.audio_only, output_path,
+                self.max_playlist, self.abort_on_long_playlist, self.do_postprocess)
             self.dnwThread.creationStarted.connect(self.on_download_started)
             self.dnwThread.progressUpdated.connect(self.update_progress_bar)
             self.dnwThread.creationFinished.connect(self.on_download_finished)
+            self.dnwThread.errorOccurred.connect(self.raise_an_error)
             self.dnwThread.start()
         except Exception as e:
             error_message = f"{self.translate_key('video_creation_failed')} {str(e)}"
@@ -318,19 +356,30 @@ class SongDownloader(QWidget):
         self.save_settings(self.current_language)
         self.set_progress_status('creation')
 
-    def set_progress_status(self, status):
+    def set_progress_status(self, status='', count=''):
         self.progressStatus = status
-        self.progressLabel.setText(self.translate_key(self.progressStatus))
+        if status or int(self.progressBar.text()[:-1]):
+            self.progressLabel.setText(f'{self.translate_key(self.progressStatus)} {str(self.progressBar.text())}')
+            self.countLabel.setText(f'{self.translate_key('progress_count')} {count}')
+        else:
+            self.progressLabel.setText('')
+            self.countLabel.setText('')
 
-    def update_progress_bar(self, value, label):
-        if label:
-            self.set_progress_status(label)
+
+    def update_progress_bar(self, value, label, count):
         self.progressBar.setValue(value)
+        if label:
+            self.set_progress_status(label, count)
 
     def on_download_finished(self):
         self.set_progress_status('finished')
         self.processButton.setEnabled(True)
         QMessageBox.information(self, self.translate_key('success_title'), self.translate_key('success_message'))
+
+    def raise_an_error(self, err_key, arr_args):
+        self.reset_progress()
+        self.processButton.setEnabled(True)
+        QMessageBox.warning(self, self.translate_key('error_title'), self.translate_key(err_key).format(*arr_args))
 
 
 if __name__ == "__main__":
