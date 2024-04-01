@@ -75,7 +75,7 @@ class ListenerThread(Thread):
                     connection, self.final_duration, self.get_count_str(), self.progress_callback
                 ))
                 self.parsers[-1].start()
-            except ConnectionAbortedError:
+            except (ConnectionAbortedError, OSError) as e:
                 print('VETOCHKA SOCKET CLOSED')
                 return
 
@@ -117,7 +117,7 @@ def get_progress_listener(use_socket, progress_callback):
     try:
         if use_socket:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(('', 0))
+            sock.bind(('localhost', 0))
             listen_on = '{}:{:d}'.format(*sock.getsockname())
             sock.listen(1)
             listener = ListenerThread(sock, listen_on, progress_callback)
@@ -170,8 +170,6 @@ def prepare_subprocess(youtube_url, audio_only, output_path,
         '--playlist-items', f'1:{max_playlist}'
     ]
 
-
-
     print_info = ', '.join((
         'duration:%(duration)f',
         'current:%(playlist_autonumber|1)d',
@@ -180,10 +178,10 @@ def prepare_subprocess(youtube_url, audio_only, output_path,
         f'max-playlist:{max_playlist}',
         f'abort-on-long:{int(abort_on_long_playlist)}',
     ))
+
     cmd.extend([
         '--print',
         print_info,
-        #'duration:%(duration)f, current:%(playlist_autonumber|1)d, total:%(n_entries|1)d, length:%(playlist_count|1)d',
         '--no-simulate',
     ])
 
@@ -205,7 +203,6 @@ def prepare_subprocess(youtube_url, audio_only, output_path,
     if audio_only or do_postprocess:
         cmd.extend([
             '--postprocessor-args', "ffmpeg:-progress {}".format(progress_path),
-            youtube_url,
         ])
 
     cmd.extend([
@@ -254,9 +251,9 @@ def download(youtube_url, audio_only, output_path,
 
 
 if __name__ == "__main__":
-    #youtube_url = 'https://www.youtube.com/watch?v=YG9otasNmxI'
+    youtube_url = 'https://www.youtube.com/watch?v=YG9otasNmxI'
     # youtube_url = 'https://www.youtube.com/watch?v=-4_bi5E6Z1E'
-    youtube_url = 'https://www.youtube.com/watch?v=fSzdAGoU0vI&list=PLCC3A8CC8A65F6F64'       # short list
+    # youtube_url = 'https://www.youtube.com/watch?v=fSzdAGoU0vI&list=PLCC3A8CC8A65F6F64'       # short list
     # youtube_url = 'https://www.youtube.com/playlist?list=PL8-QChleIXYo1bmmKrbh5H52IsJWnJ_8L'    # long list
     # youtube_url = 'https://www.youtube.com/watch?v=cC1xVOiCAwc'
     output_mp3_path = '/Users/betty/projects/2024-03-20/talelle/song.mp3'
