@@ -8,7 +8,7 @@ import downloader
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
                                QLineEdit, QFileDialog, QComboBox, QMessageBox, QProgressBar)
 from PySide6.QtCore import Qt, QThread, QSize, Signal
-from PySide6.QtGui import (QIcon, QPixmap)
+from PySide6.QtGui import QPixmap
 
 
 class DownloaderThread(QThread):
@@ -48,14 +48,28 @@ class SongDownloader(QWidget):
         self.current_language = self.get_language(settings)
         self.translations = self.load_translations(self.current_language)
         self.project_path, self.project_folder = self.get_project_path(settings)
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-        self.locale_subjects = dict()
-        self.direction_subjects = list()
-        self.alignment_subjects = list()
+
         self.audio_only = True
         self.do_postprocess = self.get_postprocess_flag(settings)
-        self.max_playlist, self.abort_on_long_playlist= self.get_playlist_settings(settings)
+        self.max_playlist, self.abort_on_long_playlist = self.get_playlist_settings(settings)
+
+        # declare QComponent groups
+        self.locale_subjects = dict()
+        self.direction_subjects = list()
+
+        # declare QComponents
+        self.audioVideoButton = None
+        self.langComboBox = None
+        self.projLineEdit = None
+        self.downloadUrlLineEdit = None
+        self.outputFileLineEdit = None
+        self.outputFileHint = None
+        self.processButton = None
+        self.progressLabel = None
+        self.progressStatus = None
+        self.countLabel = None
+        self.progressBar = None
+
         self.setup_ui()
         self.apply_settings(settings)
         self.change_language(self.current_language)
@@ -166,106 +180,124 @@ class SongDownloader(QWidget):
             return 'mp4'
 
     def setup_ui(self):
-        # Update Logo
-        self.logoLabel = QLabel(self)
-        self.logoPixmap = QPixmap('images/logo.png')
-        scaledLogoPixmap = self.logoPixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.logoLabel.setPixmap(scaledLogoPixmap)
-        self.logoLabel.setFixedSize(scaledLogoPixmap.size())
+        layout = QVBoxLayout()
+        self.setLayout(layout)
 
-        self.audioVideoButton = QPushButton()
-        self.audioVideoButton.setIcon(self.get_audio_video_pixmap())
-        self.audioVideoButton.setIconSize(QSize(50,50))
-        self.audioVideoButton.setFixedSize(QSize(80,80))
-        self.audioVideoButton.clicked.connect(self.audio_video_switch)
+        # Update Logo
+        logoLabel = QLabel(self)
+        logoPixmap = QPixmap('images/logo.png')
+        scaledLogoPixmap = logoPixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio,
+                                                  Qt.TransformationMode.SmoothTransformation)
+        logoLabel.setPixmap(scaledLogoPixmap)
+        logoLabel.setFixedSize(scaledLogoPixmap.size())
+
+        audioVideoButton = QPushButton()
+        audioVideoButton.setIcon(self.get_audio_video_pixmap())
+        audioVideoButton.setIconSize(QSize(50,50))
+        audioVideoButton.setFixedSize(QSize(80,80))
+        audioVideoButton.clicked.connect(self.audio_video_switch)
 
         topLayout = QHBoxLayout()
-        topLayout.addWidget(self.logoLabel, alignment=Qt.AlignmentFlag.AlignLeft)
-        topLayout.addWidget(self.audioVideoButton)
-        self.layout.addLayout(topLayout)
+        topLayout.addWidget(logoLabel, alignment=Qt.AlignmentFlag.AlignLeft)
+        topLayout.addWidget(audioVideoButton)
+        layout.addLayout(topLayout)
 
         # Language selection
-        self.languageLabel = QLabel()
-        self.locale_subjects['language_label'] = self.languageLabel
-        self.langComboBox = QComboBox()
-        self.langComboBox.addItems(self.load_language_names())
-        self.langComboBox.currentTextChanged.connect(self.change_language)
+        languageLabel = QLabel()
+        langComboBox = QComboBox()
+        langComboBox.addItems(self.load_language_names())
+        langComboBox.currentTextChanged.connect(self.change_language)
         langLayout = QHBoxLayout()
-        langLayout.addWidget(self.languageLabel)
-        langLayout.addWidget(self.langComboBox)
-        self.direction_subjects.append(langLayout)
-        self.layout.addLayout(langLayout)
+        langLayout.addWidget(languageLabel)
+        langLayout.addWidget(langComboBox)
+        layout.addLayout(langLayout)
 
         # Project selection
-        self.projLabel = QLabel()
-        self.locale_subjects['project_label'] = self.projLabel
-        self.projLineEdit = QLineEdit()
-        self.projLineEdit.textChanged.connect(self.reset_progress)
-        self.projButton = QPushButton()
-        self.locale_subjects['choose_project'] = self.projButton
-        self.projButton.clicked.connect(self.choose_project)
-        self.projLayout = QHBoxLayout()
-        self.projLayout.addWidget(self.projLabel)
-        self.projLayout.addWidget(self.projLineEdit)
-        self.projLayout.addWidget(self.projButton)
-        self.direction_subjects.append(self.projLayout)
-        self.layout.addLayout(self.projLayout)
+        projLabel = QLabel()
+        projLineEdit = QLineEdit()
+        projLineEdit.textChanged.connect(self.reset_progress)
+        projButton = QPushButton()
+        projButton.clicked.connect(self.choose_project)
+        projLayout = QHBoxLayout()
+        projLayout.addWidget(projLabel)
+        projLayout.addWidget(projLineEdit)
+        projLayout.addWidget(projButton)
+        layout.addLayout(projLayout)
 
         # Url selection
-        self.downloadUrlLabel = QLabel()
-        self.locale_subjects['video_url'] = self.downloadUrlLabel
-        self.downloadUrlLineEdit = QLineEdit()
-        self.downloadUrlLineEdit.textChanged.connect(self.reset_progress)
-        self.downloadUrlLineEdit.setMinimumWidth(400)
+        downloadUrlLabel = QLabel()
+        downloadUrlLineEdit = QLineEdit()
+        downloadUrlLineEdit.textChanged.connect(self.reset_progress)
+        downloadUrlLineEdit.setMinimumWidth(400)
         downloadUrlLayout = QHBoxLayout()
-        downloadUrlLayout.addWidget(self.downloadUrlLabel)
-        downloadUrlLayout.addWidget(self.downloadUrlLineEdit)
-        self.direction_subjects.append(downloadUrlLayout)
-        self.layout.addLayout(downloadUrlLayout)
+        downloadUrlLayout.addWidget(downloadUrlLabel)
+        downloadUrlLayout.addWidget(downloadUrlLineEdit)
+        layout.addLayout(downloadUrlLayout)
 
         # Output file selection
-        self.outputFileLabel = QLabel()
-        self.locale_subjects['output_label'] = self.outputFileLabel
-        self.outputFileLineEdit = QLineEdit()
-        self.outputFileLineEdit.textChanged.connect(self.reset_progress)
-        self.outputFileButton = QPushButton()
-        self.outputFileButton.clicked.connect(self.create_output_file)
-        self.locale_subjects['create_button'] = self.outputFileButton
+        outputFileLabel = QLabel()
+        outputFileLineEdit = QLineEdit()
+        outputFileLineEdit.textChanged.connect(self.reset_progress)
+        outputFileButton = QPushButton()
+        outputFileButton.clicked.connect(self.create_output_file)
         outputFileLayout = QHBoxLayout()
-        outputFileLayout.addWidget(self.outputFileLabel)
-        outputFileLayout.addWidget(self.outputFileLineEdit)
-        outputFileLayout.addWidget(self.outputFileButton)
-        self.direction_subjects.append(outputFileLayout)
-        self.layout.addLayout(outputFileLayout)
+        outputFileLayout.addWidget(outputFileLabel)
+        outputFileLayout.addWidget(outputFileLineEdit)
+        outputFileLayout.addWidget(outputFileButton)
 
-        self.outputFileHint = QLabel()
-        self.locale_subjects['default_name_hint'] = self.outputFileHint
-        self.outputFileHint.setVisible(False)
-        # self.alignment_subjects.append(self.outputFileHint)
-        self.layout.addWidget(self.outputFileHint)
+        layout.addLayout(outputFileLayout)
+
+        outputFileHint = QLabel()
+        outputFileHint.setVisible(False)
+        layout.addWidget(outputFileHint)
 
         # Process button
-        self.processButton = QPushButton(self.translate_key('process_button'))
-        self.locale_subjects['process_button'] = self.processButton
-        self.processButton.clicked.connect(self.download)
-        self.layout.addWidget(self.processButton)
+        processButton = QPushButton(self.translate_key('process_button'))
+        processButton.clicked.connect(self.download)
+        layout.addWidget(processButton)
 
         # Progress Bar
-        self.progressLabel = QLabel('')
-        self.progressStatus = ''
-        self.countLabel = QLabel()
+        progressLabel = QLabel('')
+        progressStatus = ''
+        countLabel = QLabel()
         progressLayout = QHBoxLayout()
-        progressLayout.addWidget(self.progressLabel)
-        progressLayout.addWidget(self.countLabel)
+        progressLayout.addWidget(progressLabel)
+        progressLayout.addWidget(countLabel)
+        layout.addLayout(progressLayout)
+
+
+        progressBar = QProgressBar(self)
+        progressBar.setValue(0)  # start value
+        progressBar.setMaximum(100)  # 100% completion
+        layout.addWidget(progressBar)
+
+        self.locale_subjects['language_label'] = languageLabel
+        self.locale_subjects['project_label'] = projLabel
+        self.locale_subjects['choose_project'] = projButton
+        self.locale_subjects['video_url'] = downloadUrlLabel
+        self.locale_subjects['output_label'] = outputFileLabel
+        self.locale_subjects['create_button'] = outputFileButton
+        self.locale_subjects['default_name_hint'] = outputFileHint
+        self.locale_subjects['process_button'] = processButton
+
+        self.direction_subjects.append(langLayout)
+        self.direction_subjects.append(projLayout)
+        self.direction_subjects.append(downloadUrlLayout)
+        self.direction_subjects.append(outputFileLayout)
         self.direction_subjects.append(progressLayout)
-        self.layout.addLayout(progressLayout)
 
+        self.audioVideoButton = audioVideoButton
+        self.langComboBox = langComboBox
+        self.projLineEdit = projLineEdit
+        self.downloadUrlLineEdit = downloadUrlLineEdit
+        self.outputFileLineEdit = outputFileLineEdit
+        self.outputFileHint = outputFileHint
+        self.processButton = processButton
+        self.progressLabel = progressLabel
+        self.progressStatus = progressStatus
+        self.countLabel = countLabel
+        self.progressBar = progressBar
 
-
-        self.progressBar = QProgressBar(self)
-        self.progressBar.setValue(0)  # start value
-        self.progressBar.setMaximum(100)  # 100% completion
-        self.layout.addWidget(self.progressBar)
 
     def reset_progress(self):
         self.progressBar.setValue(0)
@@ -318,9 +350,7 @@ class SongDownloader(QWidget):
         # Update layout
         is_rtl = (language == 'עברית')
         for direction_subject in self.direction_subjects:
-            direction_subject.setDirection(QHBoxLayout.RightToLeft if is_rtl else QHBoxLayout.LeftToRight)
-        for alignment_subject in self.alignment_subjects:
-            alignment_subject.setAlignment(Qt.AlignmentFlag.AlignRight if is_rtl else Qt.AlignmentFlag.AlignLeft)
+            direction_subject.setDirection(QHBoxLayout.Direction.RightToLeft if is_rtl else QHBoxLayout.Direction.LeftToRight)
 
     def download(self):
         if not self.downloadUrlLineEdit.text() or not validators.url(self.downloadUrlLineEdit.text()):
@@ -374,7 +404,8 @@ class SongDownloader(QWidget):
     def on_download_finished(self):
         self.set_progress_status('finished')
         self.processButton.setEnabled(True)
-        QMessageBox.information(self, self.translate_key('success_title'), self.translate_key('success_message'))
+        QMessageBox.information(self, self.translate_key('success_title'), self.translate_key('success_message'),
+                                QMessageBox.StandardButton.Ok)
 
     def raise_an_error(self, err_key, arr_args):
         self.reset_progress()
