@@ -1,11 +1,15 @@
+import logging
 import os
 import re
+from typing import Optional, Callable
+
 import math
 import socket
 import subprocess
 from threading import Thread
 import contextlib
 
+logger = logging.getLogger(__name__)
 
 class ListenerParser(Thread):
     def __init__(self, connection, final_duration, count_str, progress_callback, **kwargs):
@@ -17,6 +21,7 @@ class ListenerParser(Thread):
 
 
     def run(self):
+        logger.debug('parsing postprocess data')
         data = b''
         try:
             while True:
@@ -30,25 +35,25 @@ class ListenerParser(Thread):
                 data = lines[-1]
         finally:
             self.connection.close()
-            print('VETOCHKA ANOTHER CONNECTION CLOSED')
+            logger.debug('parsing postprocess data finished')
 
 
-    def parse_ffmpeg_data(self, line):
+    def parse_ffmpeg_data(self, line: bytes):
         line = line.decode()
         parts = line.split('=')
         key = parts[0] if len(parts) > 0 else None
         value = parts[1] if len(parts) > 1 else None
         if key == 'out_time_ms':
             duration = int(value) / 1000000 if value.isdigit() else 0
-            updateProgress(duration, self.final_duration, self.progress_callback,
-                           label='postprocess', part_n=2, part_i=1, count=self.count_str)
+            update_progress(duration, self.final_duration, self.progress_callback,
+                            label='postprocess', part_n=2, part_i=1, count=self.count_str)
         elif key == 'progress' and value == 'end':
-            updateProgressPercent(100, self.progress_callback,
-                                  label='postprocess', part_n=2, part_i=1, count=self.count_str)
+            update_progress_percent(100, self.progress_callback,
+                                    label='postprocess', part_n=2, part_i=1, count=self.count_str)
 
 
 class ListenerThread(Thread):
-    def __init__(self, sock, listen_on, progress_callback, **kwargs):
+    def __init__(self, sock: Optional[socket.socket], listen_on: Optional[str], progress_callback: Callable, **kwargs):
         super().__init__(**kwargs)
         self.sock = sock
         self.listen_on = listen_on
@@ -60,7 +65,7 @@ class ListenerThread(Thread):
         self.length = 0
         self.parsers = list()
 
-    def set_info(self, duration, current, total, length):
+    def set_info(self, duration: float, current: int, total: int, length: int):
         self.final_duration = duration
         self.current = current
         self.total = total
@@ -70,21 +75,22 @@ class ListenerThread(Thread):
         while True:
             try:
                 connection, client_address = self.sock.accept()
-                print('VETOCHKA ANOTHER CONNECTION OPENED')
+                logger.debug('Postprocess process started')
                 self.parsers.append(ListenerParser(
                     connection, self.final_duration, self.get_count_str(), self.progress_callback
                 ))
                 self.parsers[-1].start()
             except (ConnectionAbortedError, OSError) as e:
-                print('VETOCHKA SOCKET CLOSED')
+                logger.debug('Postprocess process finished')
                 return
 
 
     def get_count_str(self):
         return f'{str(self.current)}/{str(self.total)}'
 
-    def parse_yt_dlp_data(self, line):
-        line = line.decode()
+
+    def parse_yt_dlp_data(self, bin_line: bytes):
+        line = bin_line.decode()
         info_pattern = ',\\s+'.join((
             'duration:(?P<duration>\\d+(\\.\\d+))',
             'current:(?P<current>\\d+)',
@@ -94,7 +100,7 @@ class ListenerThread(Thread):
             'abort-on-long:(?P<abort_on_long>\\d+)',
         ))
         if match := re.search(info_pattern, line):
-            print(f'TALELLE {line}')
+            logger.info(f'Download info: {line}')
             if (int(match.group('abort_on_long')) and
                     int(match.group('length')) > int(match.group('max_playlist'))):
                 return 'playlist_too_long', match.group('max_playlist'), match.group('length')
@@ -105,12 +111,12 @@ class ListenerThread(Thread):
                 int(match.group('length')),
             )
         elif match := re.search('\\[download\\]\\s+(\\d+(\\.\\d+))\\%\\s+of', line):
-            updateProgressPercent(float(match.group(1)), self.progress_callback, label='download',
-                                  part_n=self.part_n, part_i=0, count=self.get_count_str())
+            update_progress_percent(float(match.group(1)), self.progress_callback, label='download',
+                                    part_n=self.part_n, part_i=0, count=self.get_count_str())
 
 
 @contextlib.contextmanager
-def get_progress_listener(use_socket, progress_callback):
+def get_progress_listener(use_socket: bool, progress_callback: Callable):
     sock = type("Closable", (object,), {"close": lambda self: "closed"})
     listener = type("Joinable", (object,), {"join": lambda self: "joined" })
 
@@ -134,7 +140,7 @@ def get_progress_listener(use_socket, progress_callback):
             listener.is_alive() and listener.join()
 
 
-def default_progress_callback(percent, label=None, count=None):
+def default_progress_callback(percent: int, label: str=None, count: str=None):
     if label:
         print(f'REPORTING ON {label} for {count}')
     for _ in range(percent):
@@ -144,24 +150,27 @@ def default_progress_callback(percent, label=None, count=None):
     print()
 
 
-def updateProgressPercent(percent, progress_callback, label=None, part_n=1, part_i=0, count=''):
+def update_progress_percent(percent: float, progress_callback: Callable,
+                            label: Optional[str] = None, part_n: int = 1, part_i: int = 0, count: str = ''
+                            ) -> float:
     process = label.upper() if label else 'PROCESS'
-    print(f'{count} -> {process} IS DONE for {str(percent)}%')
+    logger.debug(f'{count} -> {process} IS DONE for {str(percent)}%')
     progress_callback(int(percent)//part_n + 100//part_n * part_i, label, count)
     return percent
 
 
-def updateProgress(done, total, progress_callback, label=None, part_n=1, part_i=0, count=''):
+def update_progress(done: float, total: float, progress_callback: Callable,
+                    label: Optional[str] = None, part_n: int = 1, part_i: int = 0, count: str = '') -> int:
     calculated_progress = math.floor((done / total)*100)
     process = label.upper() if label else 'PROCESS'
-    print(f'{count} -> {process} IS DONE for {str(calculated_progress)}%: {str(done)} of {str(total)}')
+    logger.debug(f'{count} -> {process} IS DONE for {str(calculated_progress)}%: {str(done)} of {str(total)}')
     progress_callback(calculated_progress//part_n + 100//part_n * part_i, label, count)
     return calculated_progress
 
 
-def prepare_subprocess(youtube_url, audio_only, output_path,
-                       max_playlist, abort_on_long_playlist, do_postprocess,
-                       progress_path):
+def prepare_subprocess(youtube_url: str, audio_only: bool, output_path: str,
+                       max_playlist: int, abort_on_long_playlist: bool, do_postprocess: bool,
+                       progress_path: str) -> tuple[list[str], dict]:
     cmd = [
         'yt-dlp',
         '--progress', '--newline',
@@ -231,12 +240,28 @@ def prepare_subprocess(youtube_url, audio_only, output_path,
     return cmd, kwargs
 
 
+def check_ffmpeg_available():
+    try:
+        subprocess.run(
+            ['ffmpeg', '-version'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError, PermissionError) as e:
+        logger.error('ffmpeg is not usable: %s', e)
+        return False
 
-def download(youtube_url, audio_only, output_path,
-             max_playlist=-1, abort_on_long_playlist=False, do_postprocess=True,
-             progress_callback=default_progress_callback):
+
+def download(youtube_url: str, audio_only: bool, output_path: str,
+             max_playlist: int = -1, abort_on_long_playlist: bool = False, do_postprocess: bool = True,
+             progress_callback: Callable = default_progress_callback):
 
     use_ffmpeg = audio_only or do_postprocess
+
+    if use_ffmpeg and not check_ffmpeg_available():
+        raise EnvironmentError("FFmpeg is not available or not usable. Please ensure it is installed and accessible.")
 
     with get_progress_listener(use_ffmpeg, progress_callback) as listener:
         cmd, kwargs = prepare_subprocess(youtube_url, audio_only, output_path,
@@ -246,9 +271,9 @@ def download(youtube_url, audio_only, output_path,
         for line in process.stdout:
             if err := listener.parse_yt_dlp_data(line):
                 process.terminate()
-                print('VETOCHKA DOWNLOAD ABORT')
+                logger.error('error occurred when downloading: %s', err)
                 raise ValueError(*err)
-    print('VETOCHKA DOWNLOAD DONE')
+    logger.info('Download finished')
 
 
 
@@ -257,8 +282,13 @@ if __name__ == "__main__":
     # youtube_url = 'https://www.youtube.com/watch?v=YG9otasNmxI'
     # youtube_url = 'https://www.youtube.com/watch?v=-4_bi5E6Z1E'
     # youtube_url = 'https://www.youtube.com/playlist?list=PL8-QChleIXYoF73aPIswV0umaJLPJ7Jod'         # short list
-    youtube_url = 'https://www.youtube.com/playlist?list=PL8-QChleIXYo1bmmKrbh5H52IsJWnJ_8L'       # long list
+    # youtube_url = 'https://www.youtube.com/playlist?list=PL8-QChleIXYo1bmmKrbh5H52IsJWnJ_8L'       # long list
     # youtube_url = 'https://www.youtube.com/watch?v=cC1xVOiCAwc'
-    output_mp3_path = '/Users/betty/projects/2024-03-20/talelle/song.mp3'
+    youtube_url = 'https://www.youtube.com/watch?v=VQX_achGHew'
+    # output_mp3_path = '/Users/betty/projects/2024-03-20/talelle/song.mp3'
+    output_mp3_path = '/Users/betty/projects/2025-03-25/vetochka/2025-03-25_vetochka.mp3'
     output_mp4_path = '/Users/betty/projects/2024-03-20/yona'
-    download(youtube_url, False, output_mp4_path)
+    # download(youtube_url, True, output_path=output_mp3_path, do_postprocess=False)
+    download(youtube_url = 'https://www.youtube.com/watch?v=VQX_achGHew', audio_only = True,
+             output_path = '/Users/betty/projects/2025-03-25/vetochka/2025-03-25_vetochka.mp3',
+             max_playlist = 10, abort_on_long_playlist = True, do_postprocess = False)
